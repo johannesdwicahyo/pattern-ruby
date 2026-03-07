@@ -1,1 +1,5 @@
 CLAUDE.md
+*.gem
+pkg/
+Gemfile.lock
+tmp/
