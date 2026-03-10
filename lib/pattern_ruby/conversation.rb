@@ -7,60 +7,65 @@ module PatternRuby
       @context = nil
       @history = []
       @slots = {}
+      @mutex = Mutex.new
     end
 
     def process(input)
-      result = @router.match(input, context: @context)
+      @mutex.synchronize do
+        result = @router.match(input, context: @context)
 
-      if result.matched?
-        # Merge new entities into accumulated slots
-        result.entities.each do |k, v|
-          @slots[k] = v unless v.nil?
-        end
+        if result.matched?
+          # Merge new entities into accumulated slots
+          result.entities.each do |k, v|
+            @slots[k] = v unless v.nil?
+          end
 
-        # Build enriched result with accumulated slots
-        result = MatchResult.new(
-          intent: result.intent,
-          entities: @slots.dup,
-          pattern: result.pattern,
-          score: result.score,
-          input: result.input,
-          response: result.response
-        )
-      elsif !@history.empty? && @slots.any?
-        # Try to fill a missing slot from context
-        last = @history.last
-        if last&.matched?
-          filled = try_slot_fill(input, last.intent)
-          if filled
-            result = MatchResult.new(
-              intent: last.intent,
-              entities: @slots.dup,
-              pattern: last.pattern,
-              score: last.score,
-              input: input,
-              response: last.response
-            )
+          # Build enriched result with accumulated slots
+          result = MatchResult.new(
+            intent: result.intent,
+            entities: @slots.dup,
+            pattern: result.pattern,
+            score: result.score,
+            input: result.input,
+            response: result.response
+          )
+        elsif !@history.empty? && @slots.any?
+          # Try to fill a missing slot from context
+          last = @history.last
+          if last&.matched?
+            filled = try_slot_fill(input, last.intent)
+            if filled
+              result = MatchResult.new(
+                intent: last.intent,
+                entities: @slots.dup,
+                pattern: last.pattern,
+                score: last.score,
+                input: input,
+                response: last.response
+              )
+            end
           end
         end
-      end
 
-      @history << result
-      result
+        @history << result
+        result
+      end
     end
 
     def set_context(ctx)
-      @context = ctx
+      @mutex.synchronize { @context = ctx }
     end
 
     def clear_context
-      @context = nil
+      @mutex.synchronize { @context = nil }
     end
 
     def reset
-      @context = nil
-      @history = []
-      @slots = {}
+      @mutex.synchronize do
+        @context = nil
+        @history = []
+        @slots = {}
+      end
     end
 
     private
@@ -74,7 +79,7 @@ module PatternRuby
       return false if unfilled.empty?
 
       # Try the input as a value for the first unfilled slot
-      name, defn = unfilled.first
+      name, _defn = unfilled.first
       @slots[name] = input.strip
       true
     end

@@ -14,8 +14,11 @@ module PatternRuby
     def pattern(pat)
       if pat.is_a?(Regexp)
         @compiled_patterns << RegexPattern.new(pat)
-      else
+      elsif pat.is_a?(String)
+        raise ArgumentError, "pattern cannot be empty" if pat.strip.empty?
         @compiled_patterns << @compiler.compile(pat)
+      else
+        raise ArgumentError, "pattern must be a String or Regexp, got #{pat.class}"
       end
     end
 

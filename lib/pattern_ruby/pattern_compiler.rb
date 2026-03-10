@@ -17,11 +17,20 @@ module PatternRuby
   end
 
   class PatternCompiler
+    # Maximum pattern string length to prevent ReDoS / excessive compilation cost
+    MAX_PATTERN_LENGTH = 10_000
+
     def initialize(entity_registry: nil)
       @entity_registry = entity_registry
     end
 
     def compile(pattern_string)
+      raise ArgumentError, "pattern must be a String, got #{pattern_string.class}" unless pattern_string.is_a?(String)
+      raise ArgumentError, "pattern cannot be nil or empty" if pattern_string.nil? || pattern_string.strip.empty?
+      if pattern_string.length > MAX_PATTERN_LENGTH
+        raise ArgumentError, "pattern exceeds maximum length of #{MAX_PATTERN_LENGTH} characters"
+      end
+
       tokens = tokenize(pattern_string)
       entity_names = []
       literal_count = 0
@@ -131,6 +140,9 @@ module PatternRuby
           # Enum constraint: {time:today|tomorrow|this week}
           alts = token.constraint.split("|").map { |a| Regexp.escape(a.strip) }
           "(?<#{token.name}>#{alts.join('|')})"
+        elsif EntityTypes.valid_entity_type?(token.constraint)
+          # NER type constraint: {entity:PERSON} — treated as free-text capture
+          "(?<#{token.name}>.+?)"
         else
           # Regex constraint: {order_id:\\d+}
           "(?<#{token.name}>#{token.constraint})"
