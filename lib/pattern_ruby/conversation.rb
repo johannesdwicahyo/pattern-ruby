@@ -75,12 +75,24 @@ module PatternRuby
       return false unless intent
 
       # Find entity definitions that don't have a slot value yet
-      unfilled = intent.entity_definitions.select { |name, _| !@slots.key?(name) || @slots[name].nil? }
+      unfilled = intent.entity_definitions.select { |k, _| !@slots.key?(k) || @slots[k].nil? }
       return false if unfilled.empty?
 
       # Try the input as a value for the first unfilled slot
-      name, _defn = unfilled.first
-      @slots[name] = input.strip
+      slot_name, defn = unfilled.first
+      value = input.strip
+
+      # Validate against entity type constraints if defined
+      if defn
+        if defn[:values] && !defn[:values].include?(value)
+          return false
+        end
+        if defn[:pattern] && !value.match?(defn[:pattern])
+          return false
+        end
+      end
+
+      @slots[slot_name] = value
       true
     end
   end
